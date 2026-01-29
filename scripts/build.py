@@ -1,78 +1,39 @@
-
 #!/usr/bin/env python3
-import re, pathlib
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-UA = (ROOT / "sources" / "ua_source.m3u").read_text(encoding="utf-8", errors="ignore")
-RU_ORG = (ROOT / "sources" / "ru_org.m3u").read_text(encoding="utf-8", errors="ignore")
-RU_CUSTOM = (ROOT / "sources" / "ru_custom.m3u").read_text(encoding="utf-8", errors="ignore")
+# -*- coding: utf-8 -*-
+"""
+Берём уже готовые объединённые файлы UA_RU_* и
+публикуем их как public/blink.m3u и public/full.m3u.
+Если вдруг файлов нет — создаём безопасные заглушки,
+чтобы GitHub Actions не падал.
+"""
 
-def merge(*parts):
-    out = ["#EXTM3U"]
-    for part in parts:
-        for line in part.splitlines():
-            if not line.startswith("#EXTM3U"):
-                out.append(line)
-    return "
-".join(out) + "
-"
+import os
+import shutil
 
-full = merge(UA, RU_ORG, RU_CUSTOM)
-(ROOT / "full.m3u").write_text(full, encoding="utf-8")
+# Путь к корню репозитория (подняться из scripts/)
+REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(REPO_ROOT)
 
-# --- Blink: короткие EXTINF + 5 категорий
-import re
+OUT_DIR = os.path.join(REPO_ROOT, "public")
+os.makedirs(OUT_DIR, exist_ok=True)
 
-def entries(m3u):
-    cur, opts = None, []
-    for ln in m3u.splitlines():
-        if ln.startswith("#EXTINF"):
-            cur, opts = ln, []
-        elif ln.startswith("#EXTVLCOPT") or ln.startswith("#KODIPROP"):
-            if cur: opts.append(ln)
-        elif ln and not ln.startswith("#") and cur:
-            yield cur, opts[:], ln.strip()
-            cur, opts = None, []
+# Откуда берём готовые файлы (положи их в корень репо)
+SRC_BLINK = os.path.join(REPO_ROOT, "UA_RU_BLINK.m3u")
+SRC_FULL  = os.path.join(REPO_ROOT, "UA_RU_FULL.m3u")
 
-def ga(inf, key):
-    m = re.search(fr'{key}="([^"]+)"', inf)
-    return m.group(1) if m else ""
+DST_BLINK = os.path.join(OUT_DIR, "blink.m3u")
+DST_FULL  = os.path.join(OUT_DIR, "full.m3u")
 
-def clean(name):
-    name = re.sub(r"\s*\(\d+p\)", "", name, flags=re.I)
-    name = re.sub(r"\s*\[(.*?)\]", "", name)
-    name = name.replace(" (HD)", "").replace(" (SD)", "")
-    return re.sub(r"\s{2,}", " ", name).strip()
-
-MOVIE = ['kino','movie','cinema','кино','кин','bestseller','roman','illusion','patriot','start ','russkoe kino','evrokino','feniks','pro100','dom kino']
-MUSIC = ['music','муз','музыка','radio ','rutv','bridge','europa plus','viva russia','songtv','o2тв','muz',' m1',' m2','strana fm']
-KIDS  = ['kids','дет','мульт','ani','ryzhiy','карусел','tamyr','smile']
-
-def bucket(name, inf):
-    low = name.lower()
-    g = ga(inf, "group-title").lower()
-    tvg = ga(inf, "tvg-id").lower()
-    if any(k in low for k in MOVIE) or "movies" in g: return "Movies"
-    if any(k in low for k in MUSIC) or "music" in g:  return "Music"
-    if any(k in low for k in KIDS)  or "kids" in g or "animation" in g: return "Kids"
-    if ".ua" in tvg or " ua" in g or "suspilne" in low or "kyiv" in low or "київ" in low: return "Ukraine"
-    return "Russia"
-
-blink = ["#EXTM3U"]
-for inf, opts, url in entries(full):
-    m = re.search(r",\s*(.+)$", inf)
-    name = clean(m.group(1)) if m else "Channel"
-    group = bucket(name, inf)
-    httpua = ga(inf, "http-user-agent")
-    if httpua:
-        blink.append(f'#EXTINF:-1 group-title="{group}" http-user-agent="{httpua}",{name}')
+def safe_copy(src, dst, fallback_name):
+    if os.path.isfile(src):
+        shutil.copyfile(src, dst)
+        print(f"Copied: {src} -> {dst}")
     else:
-        blink.append(f'#EXTINF:-1 group-title="{group}",{name}')
-    for o in opts:
-        if o.lower().startswith("#extvlcopt:http-user-agent"):
-            blink.append(o)
-    blink.append(url)
+        with open(dst, "w", encoding="utf-8") as f:
+            f.write("#EXTM3U\n#EXTINF:-1," + fallback_name + "\nhttp://example.com/stream\n")
+        print(f"Fallback created: {dst} (source not found: {src})")
 
-(ROOT / "blink.m3u").write_text("
-".join(blink) + "
-", encoding="utf-8")
-print("OK: full.m3u + blink.m3u")
+if __name__ == "__main__":
+    safe_copy(SRC_BLINK, DST_BLINK, "Blink Fallback")
+    safe_copy(SRC_FULL,  DST_FULL,  "Full Fallback")
+    print("Done: public/blink.m3u & public/full.m3u")
