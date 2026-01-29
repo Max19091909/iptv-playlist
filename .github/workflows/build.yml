@@ -28,23 +28,19 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Run build script (optional)
-        run: |
-          # Если скрипта нет, этот блок можно убрать.
-          # Но в любом случае убедись, что папка ./public существует
-          # и в ней лежат blink.m3u и full.m3u.
-          mkdir -p public
-          # Ниже — временная защита: если файлов нет, создадим тестовые.
-          if [ ! -f "public/blink.m3u" ]; then
-            echo "#EXTM3U" > public/blink.m3u
-            echo "#EXTINF:-1,Blink Test" >> public/blink.m3u
-            echo "http://example.com/stream" >> public/blink.m3u
-          fi
-          if [ ! -f "public/full.m3u" ]; then
-            echo "#EXTM3U" > public/full.m3u
-            echo "#EXTINF:-1,Full Test" >> public/full.m3u
-            echo "http://example.com/stream2" >> public/full.m3u
-          fi
+      - name: 
+Run build script
+  run: |
+    set -e
+    echo "Python version:"
+    python --version
+
+    echo "Running scripts/build.py..."
+    python scripts/build.py
+
+    echo "Contents of public/:"
+    ls -la public
+
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
