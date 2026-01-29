@@ -3,7 +3,7 @@ name: Build IPTV
 on:
   workflow_dispatch:
   schedule:
-    - cron: '17 3 * * *'  # ежедневно в 03:17
+    - cron: '17 3 * * *'
 
 permissions:
   contents: read
@@ -17,30 +17,22 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Если у тебя есть scripts/build.py — оставь эти два шага;
-      # если нет или он пока пустой, можно временно удалить.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: 
-Run build script
-  run: |
-    set -e
-    echo "Python version:"
-    python --version
-
-    echo "Running scripts/build.py..."
-    python scripts/build.py
-
-    echo "Contents of public/:"
-    ls -la public
-
+      - name: Run build script
+        run: |
+          set -e
+          python --version
+          python scripts/build.py
+          ls -la public
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
